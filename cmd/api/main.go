@@ -15,6 +15,9 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/ifaisalabid1/notes-upload-website/internal/config"
 	"github.com/ifaisalabid1/notes-upload-website/internal/database"
+	"github.com/ifaisalabid1/notes-upload-website/internal/handler"
+	"github.com/ifaisalabid1/notes-upload-website/internal/repository"
+	"github.com/ifaisalabid1/notes-upload-website/internal/service"
 )
 
 func main() {
@@ -35,6 +38,11 @@ func main() {
 	}
 	defer db.Close()
 
+	// ── 3. Wire up layers ─────────────────────────────────────────────────────
+	subjectRepo := repository.NewSubjectRepository(db)
+	subjectService := service.NewSubjectService(subjectRepo)
+	subjectHandler := handler.NewSubjectHandler(subjectService)
+
 	// ── 3. Router ─────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 
@@ -46,6 +54,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
+	})
+
+	r.Route("/api/v1", func(r chi.Router) {
+		subjectHandler.RegisterRoutes(r)
 	})
 
 	// ── 4. HTTP Server ────────────────────────────────────────────────────────
