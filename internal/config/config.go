@@ -15,6 +15,7 @@ type Config struct {
 	DB     DBConfig
 	R2     R2Config
 	Rate   RateLimitConfig
+	Worker WorkerConfig
 }
 
 type AppConfig struct {
@@ -37,7 +38,11 @@ type R2Config struct {
 	AccessKeyID     string `env:"R2_ACCESS_KEY_ID"     required:"true"`
 	SecretAccessKey string `env:"R2_SECRET_ACCESS_KEY" required:"true"`
 	BucketName      string `env:"R2_BUCKET_NAME"       required:"true"`
-	PublicURL       string `env:"R2_PUBLIC_URL"        required:"true"`
+}
+
+type WorkerConfig struct {
+	BaseURL string `env:"WORKER_BASE_URL" required:"true"`
+	Secret  string `env:"WORKER_SECRET"   required:"true"`
 }
 
 type RateLimitConfig struct {
@@ -65,6 +70,9 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if err := env.Parse(&cfg.Rate); err != nil {
+		return nil, err
+	}
+	if err := env.Parse(&cfg.Worker); err != nil {
 		return nil, err
 	}
 

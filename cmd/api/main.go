@@ -18,6 +18,7 @@ import (
 	"github.com/ifaisalabid1/notes-upload-website/internal/handler"
 	"github.com/ifaisalabid1/notes-upload-website/internal/repository"
 	"github.com/ifaisalabid1/notes-upload-website/internal/service"
+	"github.com/ifaisalabid1/notes-upload-website/internal/storage"
 )
 
 func main() {
@@ -42,6 +43,14 @@ func main() {
 	subjectRepo := repository.NewSubjectRepository(db)
 	subjectService := service.NewSubjectService(subjectRepo)
 	subjectHandler := handler.NewSubjectHandler(subjectService)
+
+	// ── 3. Storage ────────────────────────────────────────────────────────────
+	storageService, err := storage.NewR2Storage(cfg.R2)
+	if err != nil {
+		slog.Error("failed to initialize R2 storage", "error", err)
+		os.Exit(1)
+	}
+	_ = storageService
 
 	// ── 3. Router ─────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
