@@ -23,16 +23,15 @@ import (
 )
 
 func main() {
-	// ── 1. Config ────────────────────────────────────────────────────────────
+	// Config ────────────────────────────────────────────────────────────
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
-
 	config.SetupLogger(&cfg.App)
 
-	// ── 2. Database ───────────────────────────────────────────────────────────
+	// Database ───────────────────────────────────────────────────────────
 	db, err := database.Open(cfg.DB.Path)
 	if err != nil {
 		slog.Error("failed to open database", "error", err)
@@ -40,52 +39,54 @@ func main() {
 	}
 	defer db.Close()
 
-	// ── 3. Wire up layers ─────────────────────────────────────────────────────
+	// Storage ────────────────────────────────────────────────────────────
+	storageService, err := storage.NewR2Storage(cfg.R2)
+	if err != nil {
+		slog.Error("failed to initialise R2 storage", "error", err)
+		os.Exit(1)
+	}
+
+	// Wire up layers ─────────────────────────────────────────────────────
 	subjectRepo := repository.NewSubjectRepository(db)
 	noteRepo := repository.NewNoteRepository(db)
 
 	subjectService := service.NewSubjectService(subjectRepo)
-	storageService, err := storage.NewR2Storage(cfg.R2)
-	if err != nil {
-		slog.Error("failed to initialize R2 storage", "error", err)
-		os.Exit(1)
-	}
 	noteService := service.NewNoteService(noteRepo, subjectRepo, storageService, cfg.Worker)
 
 	subjectHandler := handler.NewSubjectHandler(subjectService)
 	noteHandler := handler.NewNoteHandler(noteService)
+	healthHandler := handler.NewHealthHandler(db)
 
-	// ── 4. Middleware ──────────────────────────────────────────────────────────
+	// Middleware ──────────────────────────────────────────────────────────
 	rateLimiter := appMiddleware.NewRateLimiter(cfg.Rate.RPS, cfg.Rate.Burst)
 
-	// ── 3. Router ─────────────────────────────────────────────────────────────
+	// Router ─────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(appMiddleware.RequestLogger())
 	r.Use(chiMiddleware.Recoverer)
+	r.Use(appMiddleware.SecureHeaders)
 	r.Use(appMiddleware.CORS(cfg.Server.FrontendOrigin))
+	r.Use(appMiddleware.MaxBodySize)
 	r.Use(rateLimiter.Middleware())
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
-	})
+	r.Get("/health", healthHandler)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		subjectHandler.RegisterRoutes(r)
 		noteHandler.RegisterRoutes(r)
 	})
 
-	// ── 4. HTTP Server ────────────────────────────────────────────────────────
+	// HTTP Server ────────────────────────────────────────────────────────
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      r,
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-		IdleTimeout:  cfg.Server.IdleTimeout,
+		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
+		Handler:           r,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		IdleTimeout:       cfg.Server.IdleTimeout,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	shutdownError := make(chan error, 1)
@@ -96,7 +97,7 @@ func main() {
 		}
 	}()
 
-	// ── 5. Graceful Shutdown ──────────────────────────────────────────────────
+	// Graceful Shutdown ──────────────────────────────────────────────────
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -110,6 +111,8 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	slog.Info("shutting down gracefully, waiting for in-flight requests...")
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("graceful shutdown failed", "error", err)
