@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/ifaisalabid1/notes-upload-website/internal/config"
 	"github.com/ifaisalabid1/notes-upload-website/internal/database"
 	"github.com/ifaisalabid1/notes-upload-website/internal/handler"
+	appMiddleware "github.com/ifaisalabid1/notes-upload-website/internal/middleware"
 	"github.com/ifaisalabid1/notes-upload-website/internal/repository"
 	"github.com/ifaisalabid1/notes-upload-website/internal/service"
 	"github.com/ifaisalabid1/notes-upload-website/internal/storage"
@@ -54,12 +55,18 @@ func main() {
 	subjectHandler := handler.NewSubjectHandler(subjectService)
 	noteHandler := handler.NewNoteHandler(noteService)
 
+	// ── 4. Middleware ──────────────────────────────────────────────────────────
+	rateLimiter := appMiddleware.NewRateLimiter(cfg.Rate.RPS, cfg.Rate.Burst)
+
 	// ── 3. Router ─────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
+	r.Use(chiMiddleware.RequestID)
+	r.Use(chiMiddleware.RealIP)
+	r.Use(appMiddleware.RequestLogger())
+	r.Use(chiMiddleware.Recoverer)
+	r.Use(appMiddleware.CORS(cfg.Server.FrontendOrigin))
+	r.Use(rateLimiter.Middleware())
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

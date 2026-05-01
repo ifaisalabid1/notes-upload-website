@@ -23,10 +23,11 @@ type AppConfig struct {
 }
 
 type ServerConfig struct {
-	Port         int           `env:"SERVER_PORT"          envDefault:"8080"`
-	ReadTimeout  time.Duration `env:"SERVER_READ_TIMEOUT"  envDefault:"10s"`
-	WriteTimeout time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"30s"`
-	IdleTimeout  time.Duration `env:"SERVER_IDLE_TIMEOUT"  envDefault:"60s"`
+	Port           int           `env:"SERVER_PORT"          envDefault:"8080"`
+	ReadTimeout    time.Duration `env:"SERVER_READ_TIMEOUT"  envDefault:"10s"`
+	WriteTimeout   time.Duration `env:"SERVER_WRITE_TIMEOUT" envDefault:"30s"`
+	IdleTimeout    time.Duration `env:"SERVER_IDLE_TIMEOUT"  envDefault:"60s"`
+	FrontendOrigin string
 }
 
 type DBConfig struct {
