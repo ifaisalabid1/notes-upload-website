@@ -41,16 +41,18 @@ func main() {
 
 	// ── 3. Wire up layers ─────────────────────────────────────────────────────
 	subjectRepo := repository.NewSubjectRepository(db)
-	subjectService := service.NewSubjectService(subjectRepo)
-	subjectHandler := handler.NewSubjectHandler(subjectService)
+	noteRepo := repository.NewNoteRepository(db)
 
-	// ── 3. Storage ────────────────────────────────────────────────────────────
+	subjectService := service.NewSubjectService(subjectRepo)
 	storageService, err := storage.NewR2Storage(cfg.R2)
 	if err != nil {
 		slog.Error("failed to initialize R2 storage", "error", err)
 		os.Exit(1)
 	}
-	_ = storageService
+	noteService := service.NewNoteService(noteRepo, subjectRepo, storageService, cfg.Worker)
+
+	subjectHandler := handler.NewSubjectHandler(subjectService)
+	noteHandler := handler.NewNoteHandler(noteService)
 
 	// ── 3. Router ─────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
@@ -67,6 +69,7 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		subjectHandler.RegisterRoutes(r)
+		noteHandler.RegisterRoutes(r)
 	})
 
 	// ── 4. HTTP Server ────────────────────────────────────────────────────────
