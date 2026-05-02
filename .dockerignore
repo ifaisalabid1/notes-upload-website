@@ -1,0 +1,10 @@
+.env
+.env.*
+bin/
+data/
+*.db
+.git/
+.gitignore
+worker/node_modules/
+worker/.wrangler/
+README.md

@@ -59,3 +59,31 @@ worker-deploy:
 ## worker-secret: set the worker secret (run once)
 worker-secret:
 	cd worker && wrangler secret put WORKER_SECRET
+
+## docker-build: build the production Docker image
+docker-build:
+	docker build -t notes-upload-website:latest .
+
+## docker-up: start PostgreSQL + API server via Docker Compose
+docker-up:
+	docker compose up --build
+
+## docker-up-detached: start in background
+docker-up-detached:
+	docker compose up --build -d
+
+## docker-down: stop and remove containers (keeps volumes)
+docker-down:
+	docker compose down
+
+## docker-down-volumes: stop and remove containers AND wipe the database
+docker-down-volumes:
+	docker compose down -v
+
+## docker-logs: tail API server logs
+docker-logs:
+	docker compose logs -f api
+
+## docker-psql: open a psql shell into the running postgres container
+docker-psql:
+	docker compose exec postgres psql -U $(POSTGRES_USER) -d $(POSTGRES_DB)
