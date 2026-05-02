@@ -1,39 +1,46 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
+	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/ifaisalabid1/notes-upload-website/internal/config"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Open(dbPath string) (*sql.DB, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-		return nil, fmt.Errorf("create db directory: %w", err)
-	}
-
-	// WAL mode allows concurrent readers alongside a single writer.
-	// busy_timeout prevents immediate "database is locked" errors.
-	dsn := fmt.Sprintf(
-		"%s?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on",
-		dbPath,
-	)
-
-	db, err := sql.Open("sqlite", dsn)
+func Open(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
+	poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
 	if err != nil {
-		return nil, fmt.Errorf("open sqlite: %w", err)
+		return nil, fmt.Errorf("parse pgx config: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	poolCfg.MaxConns = int32(cfg.MaxOpenConns)
+	poolCfg.MinConns = int32(cfg.MaxIdleConns)
+	poolCfg.MaxConnLifetime = cfg.ConnMaxLifetime
+	poolCfg.MaxConnIdleTime = cfg.ConnMaxIdleTime
+	poolCfg.HealthCheckPeriod = 1 * time.Minute
 
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("ping sqlite: %w", err)
+	poolCfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		slog.Debug("new database connection established")
+		return nil
 	}
 
-	slog.Info("database ready", "path", dbPath)
-	return db, nil
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		return nil, fmt.Errorf("create pgxpool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping postgres: %w", err)
+	}
+
+	slog.Info("database ready",
+		"max_conns", cfg.MaxOpenConns,
+		"min_conns", cfg.MaxIdleConns,
+	)
+	return pool, nil
 }

@@ -98,7 +98,7 @@ func (s *NoteService) GetByID(ctx context.Context, id string) (*domain.Note, err
 	return note, nil
 }
 
-func (s *NoteService) ListBySubject(ctx context.Context, subjectID string) ([]domain.Note, error) {
+func (s *NoteService) ListBySubject(ctx context.Context, subjectID string) ([]*domain.Note, error) {
 	if _, err := s.subjectRepo.GetByID(ctx, subjectID); err != nil {
 		return nil, err
 	}

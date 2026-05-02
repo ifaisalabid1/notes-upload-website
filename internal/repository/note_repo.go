@@ -2,19 +2,20 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
 	"github.com/ifaisalabid1/notes-upload-website/internal/domain"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type noteRepository struct {
-	db *sql.DB
+	pool *pgxpool.Pool
 }
 
-func NewNoteRepository(db *sql.DB) domain.NoteRepository {
-	return &noteRepository{db: db}
+func NewNoteRepository(pool *pgxpool.Pool) domain.NoteRepository {
+	return &noteRepository{pool: pool}
 }
 
 func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
@@ -22,9 +23,9 @@ func (r *noteRepository) Create(ctx context.Context, n *domain.Note) error {
 		INSERT INTO notes
 			(id, subject_id, title, description, file_key, file_type, file_size, created_at, updated_at)
 		VALUES
-			(?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.pool.Exec(ctx, query,
 		n.ID, n.SubjectID, n.Title, n.Description,
 		n.FileKey, n.FileType, n.FileSize,
 		n.CreatedAt, n.UpdatedAt,
@@ -39,72 +40,52 @@ func (r *noteRepository) GetByID(ctx context.Context, id string) (*domain.Note, 
 	query := `
 		SELECT id, subject_id, title, description, file_key, file_type, file_size, created_at, updated_at
 		FROM notes
-		WHERE id = ?`
+		WHERE id = $1`
 
-	n := &domain.Note{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&n.ID, &n.SubjectID, &n.Title, &n.Description,
-		&n.FileKey, &n.FileType, &n.FileSize,
-		&n.CreatedAt, &n.UpdatedAt,
-	)
+	rows, err := r.pool.Query(ctx, query, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("query note by id: %w", err)
+	}
+
+	n, err := pgx.CollectOneRow(rows, pgx.RowToAddrOfStructByName[domain.Note])
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNotFound
 		}
-		return nil, fmt.Errorf("get note by id: %w", err)
+		return nil, fmt.Errorf("collect note: %w", err)
 	}
 	return n, nil
 }
 
-func (r *noteRepository) ListBySubject(ctx context.Context, subjectID string) ([]domain.Note, error) {
+func (r *noteRepository) ListBySubject(ctx context.Context, subjectID string) ([]*domain.Note, error) {
 	query := `
 		SELECT id, subject_id, title, description, file_key, file_type, file_size, created_at, updated_at
 		FROM notes
-		WHERE subject_id = ?
+		WHERE subject_id = $1
 		ORDER BY created_at DESC`
 
-	rows, err := r.db.QueryContext(ctx, query, subjectID)
+	rows, err := r.pool.Query(ctx, query, subjectID)
 	if err != nil {
-		return nil, fmt.Errorf("list notes: %w", err)
-	}
-	defer rows.Close()
-
-	var notes []domain.Note
-	for rows.Next() {
-		var n domain.Note
-		if err := rows.Scan(
-			&n.ID, &n.SubjectID, &n.Title, &n.Description,
-			&n.FileKey, &n.FileType, &n.FileSize,
-			&n.CreatedAt, &n.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan note: %w", err)
-		}
-		notes = append(notes, n)
+		return nil, fmt.Errorf("query notes by subject: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate notes: %w", err)
+	notes, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[domain.Note])
+	if err != nil {
+		return nil, fmt.Errorf("collect notes: %w", err)
 	}
 
 	if notes == nil {
-		notes = []domain.Note{}
+		notes = []*domain.Note{}
 	}
 	return notes, nil
 }
 
 func (r *noteRepository) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM notes WHERE id = ?`
-
-	result, err := r.db.ExecContext(ctx, query, id)
+	tag, err := r.pool.Exec(ctx, `DELETE FROM notes WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete note: %w", err)
 	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("rows affected: %w", err)
-	}
-	if rows == 0 {
+	if tag.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}
 	return nil

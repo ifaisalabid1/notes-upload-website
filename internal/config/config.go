@@ -31,7 +31,11 @@ type ServerConfig struct {
 }
 
 type DBConfig struct {
-	Path string `env:"DATABASE_PATH" envDefault:"./data/notes.sqlite"`
+	DSN             string        `env:"DATABASE_DSN"              required:"true"`
+	MaxOpenConns    int           `env:"DATABASE_MAX_OPEN_CONNS"   envDefault:"25"`
+	MaxIdleConns    int           `env:"DATABASE_MAX_IDLE_CONNS"   envDefault:"25"`
+	ConnMaxLifetime time.Duration `env:"DATABASE_CONN_MAX_LIFETIME" envDefault:"5m"`
+	ConnMaxIdleTime time.Duration `env:"DATABASE_CONN_MAX_IDLE_TIME" envDefault:"5m"`
 }
 
 type R2Config struct {

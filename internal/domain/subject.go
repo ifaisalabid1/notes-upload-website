@@ -6,12 +6,12 @@ import (
 )
 
 type Subject struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Slug        string    `json:"slug"`
-	Description string    `json:"description"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          string    `json:"id"          db:"id"`
+	Name        string    `json:"name"        db:"name"`
+	Slug        string    `json:"slug"        db:"slug"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at"  db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"  db:"updated_at"`
 }
 
 type CreateSubjectInput struct {
@@ -28,7 +28,7 @@ type SubjectRepository interface {
 	Create(ctx context.Context, subject *Subject) error
 	GetByID(ctx context.Context, id string) (*Subject, error)
 	GetBySlug(ctx context.Context, slug string) (*Subject, error)
-	List(ctx context.Context) ([]Subject, error)
+	List(ctx context.Context) ([]*Subject, error)
 	Update(ctx context.Context, subject *Subject) error
 	Delete(ctx context.Context, id string) error
 }

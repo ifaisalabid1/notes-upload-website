@@ -32,12 +32,12 @@ func main() {
 	config.SetupLogger(&cfg.App)
 
 	// Database ───────────────────────────────────────────────────────────
-	db, err := database.Open(cfg.DB.Path)
+	pool, err := database.Open(context.Background(), cfg.DB)
 	if err != nil {
 		slog.Error("failed to open database", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer pool.Close()
 
 	// Storage ────────────────────────────────────────────────────────────
 	storageService, err := storage.NewR2Storage(cfg.R2)
@@ -47,15 +47,15 @@ func main() {
 	}
 
 	// Wire up layers ─────────────────────────────────────────────────────
-	subjectRepo := repository.NewSubjectRepository(db)
-	noteRepo := repository.NewNoteRepository(db)
+	subjectRepo := repository.NewSubjectRepository(pool)
+	noteRepo := repository.NewNoteRepository(pool)
 
 	subjectService := service.NewSubjectService(subjectRepo)
 	noteService := service.NewNoteService(noteRepo, subjectRepo, storageService, cfg.Worker)
 
 	subjectHandler := handler.NewSubjectHandler(subjectService)
 	noteHandler := handler.NewNoteHandler(noteService)
-	healthHandler := handler.NewHealthHandler(db)
+	healthHandler := handler.NewHealthHandler(pool)
 
 	// Middleware ──────────────────────────────────────────────────────────
 	rateLimiter := appMiddleware.NewRateLimiter(cfg.Rate.RPS, cfg.Rate.Burst)

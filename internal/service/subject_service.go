@@ -54,7 +54,7 @@ func (s *SubjectService) GetBySlug(ctx context.Context, slug string) (*domain.Su
 	return s.repo.GetBySlug(ctx, slug)
 }
 
-func (s *SubjectService) List(ctx context.Context) ([]domain.Subject, error) {
+func (s *SubjectService) List(ctx context.Context) ([]*domain.Subject, error) {
 	return s.repo.List(ctx)
 }
 

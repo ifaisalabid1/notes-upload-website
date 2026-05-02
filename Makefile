@@ -8,7 +8,7 @@ APP_NAME   := notes-upload-website
 CMD_PATH   := ./cmd/api
 BINARY     := bin/$(APP_NAME)
 MIGRATIONS := migrations
-DATABASE_PATH := sqlite://$(DATABASE_PATH)
+DATABASE_PATH := $(DATABASE_DSN)
 
 .PHONY: run build clean test lint migrate-up migrate-down tidy
 

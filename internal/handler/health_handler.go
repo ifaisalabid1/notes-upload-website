@@ -1,18 +1,20 @@
 package handler
 
 import (
-	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type healthHandler struct {
-	db *sql.DB
+	pool *pgxpool.Pool
 }
 
-func NewHealthHandler(db *sql.DB) http.HandlerFunc {
-	h := &healthHandler{db: db}
+func NewHealthHandler(pool *pgxpool.Pool) http.HandlerFunc {
+	h := &healthHandler{pool: pool}
 	return h.handle
 }
 
@@ -26,12 +28,19 @@ func (h *healthHandler) handle(w http.ResponseWriter, r *http.Request) {
 	checks := make(map[string]string)
 	overallStatus := "ok"
 
-	ctx := r.Context()
-	if err := h.db.PingContext(ctx); err != nil {
+	// Ping acquires a connection from the pool and checks liveness.
+	if err := h.pool.Ping(r.Context()); err != nil {
 		checks["database"] = "unreachable: " + err.Error()
 		overallStatus = "degraded"
 	} else {
-		checks["database"] = "ok"
+		// Also surface pool stats — useful for debugging connection exhaustion.
+		stat := h.pool.Stat()
+		checks["database"] = fmt.Sprintf(
+			"ok (total=%d idle=%d acquired=%d)",
+			stat.TotalConns(),
+			stat.IdleConns(),
+			stat.AcquiredConns(),
+		)
 	}
 
 	status := http.StatusOK
