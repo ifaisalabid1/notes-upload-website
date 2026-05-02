@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Top-level configuration
+  "name": "notes-worker",
+  "main": "src/index.ts",
+  // Set this to today's date
+  "compatibility_date": "2026-05-02",
+  "workers_dev": false,
+  "r2_buckets": [
+    {
+      "binding": "NOTES_BUCKET",
+      "bucket_name": "notes",
+    },
+  ],
+
+  "vars": {
+    "ALLOWED_ORIGIN": "http://localhost:5173",
+  },
+}
