@@ -28,6 +28,13 @@ func Open(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
 		return nil
 	}
 
+	poolCfg.PrepareConn = func(ctx context.Context, conn *pgx.Conn) (bool, error) {
+		if err := conn.Ping(ctx); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return nil, fmt.Errorf("create pgxpool: %w", err)
